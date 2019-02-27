@@ -1,6 +1,8 @@
 const http = require('http');
 const express = require('express');
 const app = express();
+
+
 app.get("/", (request, response) => {
   console.log(Date.now() + " Ping Received");
   response.sendStatus(200);
@@ -10,47 +12,153 @@ setInterval(() => {
   http.get(`http://${process.env.PROJECT_DOMAIN}.glitch.me/`);
 }, 280000);
 
-
-const { Client, RichEmbed, Attachment } = require("discord.js");
+const { version, Client, RichEmbed, Attachment, Collection } = require("discord.js");
 const Enmap = require('enmap');
+const edb = new Enmap({
+name: "edb",
+ensureProps: true
+})
 const client = new Client({disableEveryone: true});
 const superagent = require('superagent'); 
 const { Util } = require('discord.js');
 const YouTube = require('simple-youtube-api');
 const ytdl = require('ytdl-core');
 const youtube = new YouTube("AIzaSyDXtnV7yR6-dBdCSvoJSGvplpkczBYyUbQ");
-const queue = new Map();
+const queue = new Collection();
+const server2 = require("./server-two.js")
 const ms = require('ms');
 const prefixdb = new Enmap({ name: "prefixdb"})
+const channeldb = new Enmap({ name: "channeldb" })
 const { post } = require('node-superfetch');
 const { owners_id } = require("./config.json");
 const Discord = require('discord.js');
+const fs = require ('fs');
+const moment = require ('moment');
+const server = http.createServer(app);
+const m = require("moment-duration-format");
+let os = require('os')
+let cpuStat = require("cpu-stat")
+const eco = require ('discord-economy');
+const { inspect } = require("util");
+const DBL = require("dblapi.js");
+const dbl = new DBL(process.env.dbltoken, { webhookAuth: 'Xeno', webhookServer: server });
+dbl.webhook.on('ready', hook => {
+  console.log(`Webhook running at http://${hook.hostname}:${hook.port}${hook.path}`);
+});
+dbl.webhook.on('vote', vote => {
+  let embed = new Discord.RichEmbed()
+      .setColor('#3498db')
+      .setTitle("Some one just voted!")
+      .addField("User ID:", `${client.users.get(vote.user).id} just voted!`)
+      .setTimestamp();
+  console.log(`User with ID ${vote.user} just voted!`);
+  client.channels.get('549530774483894274').send(embed)
+});
+dbl.on('posted', () => {
+  console.log('Server count posted!');
+})
+dbl.on('error', e => {
+ console.log(`Oops! ${e}`);
+})
+server.listen(5000, () => {
+  console.log('Listening');
+});
+const cooldown = new Set();
+
+
 
 client.on("ready", () => {
+  
 
   console.log(`Logged in as ${client.user.username}!`);
+  
+  const statuses = [
+    { type: 'PLAYING', name: `x!help | ${client.guilds.size} servers` },
+    { type: 'PLAYING', name: `x!help | For help` },
+    { type: 'WATCHING', name: `Xenō on ${client.guilds.size} servers!` },
+    { type: 'PLAYING', name: `x!invite | Invite me to your server!` },
+    { type: 'PLAYING', name: `x!support | Join our Support Server!` }
+    
+];
+  
+  /*const avaters = [
+    { image: `https://media.discordapp.net/attachments/511374881569505285/545598409395142666/Xeno.jpg` },
+    { image: `https://media.discordapp.net/attachments/511374881569505285/545598439681949697/Xeno3.png` }
+];*/
 
-  client.user.setActivity("x!help", { type: "PLAYING" })
-
+setInterval(() => {
+    const status = statuses[Math.floor(Math.random() * statuses.length)];
+    if (status.type === 'STREAMING') {
+        client.user.setActivity(status.name, { type: status.type, url: status.url });
+    } else {
+        client.user.setActivity(status.name, { type: status.type });
+    }
+}, 10000);
+  
+/*  setInterval(() => {
+  
+  try{
+    const avater = avaters[Math.floor(Math.random() * statuses.length)];
+    
+      client.user.setAvatar(avater.image);
+  } catch (err) {
+    console.log(err)
+  }
+    
+  
+}, 8.64e+7);*/
+  
+  setInterval(() => {
+        dbl.postStats(client.guilds.size, client.shards.Id, client.shards.total);
+    }, 1800000);
+  
+  
 });
 
+
 client.on('guildMemberAdd', member => {
-  
-  var role = member.guild.roles.find('name', 'Members');
-  var role2 = member.guild.roles.find('name', 'Member');
-  
   try {
+    let embed = new RichEmbed()
+   .setTitle("Member Joined!")
+   .addField("Name:", member.user)
+   .addField("User ID:", member.id)
+   .addField("Member Count:", member.guild.memberCount)
+   .setFooter(`Welcome to ${member.guild.name}!!`)
+   .setColor("#3498db");
+
+  member.guild.channels.get('543032654388264960').send(embed); 
     
+    let role = member.guild.roles.find(`name`, "Xenō Members");
   member.addRole(role);
+    
   } catch (err) {
+    console.log(err)
+  }
+});
+
+client.on("guildMemberRemove", member => {
+  try {
+  let embed = new RichEmbed()
+   .setTitle("Member Left")
+   .addField("Name:", member.user)
+   .addField("User ID:", member.id)
+   .addField("Member Count:", member.guild.memberCount)
+   .setFooter(`Goodbye, we hope you had a nice time in ${member.guild.name}.`)
+   .setColor("#ff0000");
+
+  member.guild.channels.get('543032654388264960').send(embed);
     
-   member.addRole(role2);
-    
+  } catch (err) {
+    console.log(err)
   }
 });
 
 
 
+
+
+
+client.afk = new Map();
 client.on("message", async message => { 
   
   let keym = message.guild.id
@@ -58,6 +166,7 @@ client.on("message", async message => {
   prefixdb.ensure(keym, {
     
     p: "x!"
+    
     
   })
   
@@ -68,9 +177,23 @@ if(!message.content.startsWith(prefix)) return;
 const args = message.content.slice(prefix.length).trim().split(/\s+/g);
 
 const command = args.shift().toLowerCase();
-  
+
+let sender = message.author;
 	
 if(message.author.bot) return;
+  
+  
+  
+  if (client.user.id === message.author.id) { return }
+  
+  
+  
+  
+  
+  
+  
+  
+  
 	
 
   
@@ -78,15 +201,17 @@ if(['h', 'hlp', 'help'].includes(command)) {
   
   let embed = new RichEmbed()
     .setTitle("Xeno Commands")
-    .setDescription("Need help with my commands? No problem here they are:")
-    .addField("Commands", `**${prefix}poll** - Does a poll in your server. Please put \`\`*\`\` to separate the title and the question. Permission Require: View Audit Log.\n**${prefix}purge** - Deletes messages in your server which channel you are in. Maximum 100 messages.\nPermission Require: Manage Message.\n**${prefix}meme** - Shows you a meme.\n**${prefix}serverinfo** - Shows the server information.\n**${prefix}mute** - Mutes a member from chatting in your server.\nPermission Require: Mute Members.\n**${prefix}unmute** - Unmutes the member so he can again chat with the server.\nPermission Require: Mute Members.\n**${prefix}lock** - Locks down a channel so members can't send messages.\n**${prefix}unlock** - Unlocks a channel so members can send messages again.\n**${prefix}lock <time>** - Locks down a channel until the time runs out.\n**${prefix}unlock <time>** - Unlocks the channel until the time runs out.\nPermission Require: Manage Channels.\n**${prefix}invite** - Invite me to your server!\n**${prefix}setprefix** - Set your own prefix for our bot for your server!\nPermission Require: Administrator.`)
-    .addField("Music", `\n\nIf you need help with the music commands, then do\n**${prefix}help-music**\n\nCreated By`)
+    .setDescription(`Need help with my commands? No problem here they are:`)
+    .addField("Commands", `**${prefix}poll** - Does a poll in your server. Please put \`\`*\`\` to separate the title and the question. Permission Require: View Audit Log.\n**${prefix}purge** \`\`OR\`\` **${prefix}clear** - Deletes messages in your server which channel you are in. Maximum 100 messages.\nPermission Require: Manage Message.\n**${prefix}meme** - Shows you a meme.\n**${prefix}serverinfo** - Shows the server information.\n**${prefix}mute** - Mutes a member from chatting in your server.\nPermission Require: Mute Members.\n**${prefix}unmute** - Unmutes the member so he can again chat with the server.\nPermission Require: Mute Members.\n**${prefix}lock** - Locks down a channel so members can't send messages.\n**${prefix}unlock** - Unlocks a channel so members can send messages again.\n**${prefix}lock <time>** - Locks down a channel until the time runs out.\n**${prefix}unlock <time>** - Unlocks the channel until the time runs out.\nPermission Require: Manage Channels.\n**${prefix}avatar** - Shows you the mentioned user's avatar or your's avatar.`)
+    .addField("Setting up", `**${prefix}setprefix <prefix>** - Set's the prefix for the server!\nPermission Require: Admininistrator\n**Coming Soon**`)
+    .addField("Support Commands", `**${prefix}support** - Sends you my support server's link! Join now!!\n**${prefix}invite** - Sends you the link to invite me in your server!\n**${prefix}vote** - Sends you the link to vote me!! (Rewards Coming Soon!)`)
+    .addField("Music", `\n\nIf you need help with the music commands, then do\n**${prefix}help music**\n\nCreated By`)
     .setColor("#3498db")
     .setFooter("RanTDR#8283", "https://cdn.discordapp.com/avatars/461071232985464832/1bc498f18b68310cdcd18870d0a7ddc9.png?size=256")
   
   try{
     
-    message.channel.send("Please check your DM.")
+    await message.channel.send("Please check your DM.")
     await message.author.send(embed);
     
   } catch (err){
@@ -107,8 +232,17 @@ if(['h', 'hlp', 'help'].includes(command)) {
     .setColor("#3498db")
     .setFooter("RanTDR#8283", "https://cdn.discordapp.com/avatars/461071232985464832/1bc498f18b68310cdcd18870d0a7ddc9.png?size=256")
     
-    message.channel.send("Please check your DM.")
+    try{
+    
+    await message.channel.send("Please check your DM.")
     await message.author.send(embed);
+    
+  } catch (err){
+    
+    await message.channel.send("Sorry but I couldn't send the message in your DM so here it is.")
+    await message.channel.send(embed);
+    
+  }
     
   }
   
@@ -122,6 +256,7 @@ message.channel.send(`Hoold on!`).then(m => {
     });
 
  }
+  
   
   
  if(command === 'pong') {
@@ -159,35 +294,22 @@ let question = message.content.split('*').slice(1).join(' ')
    await msg.react('🤷')
   
 
-}
+} 
   
-  
- if(command === "purge") {
-   
-   let args = message.content.split(" ");
-
-let toClear = args.slice(1);
-
-toClear = Number(toClear);
-
- if(!message.member.hasPermission("MANAGE_MESSAGES")) return message.reply("You don't have enough permissions to do that.");
-  
-if(!args[0]) {
-  let a = new RichEmbed()
-  .setDescription("Please specify the number of messages")
-  .setThumbnail(client.user.displayAvatarURL)
-  .setColor("RANDOM");
-
-  return message.channel.send(a);
-
-
-  }
-
-   await message.channel.bulkDelete(toClear)
+   if(['clear', 'purge'].includes(command)) {
+     
+     if(!message.member.hasPermission("MANAGE_MESSAGES")) return message.reply("You don't have enough permissions to do that.");
+     
+    const deleteCount = parseInt(args[0], 10);
     
-   await message.channel.send(`Cleared ${toClear} messages!`).then(msg => msg.delete(1000));
-  
-   
+    if(!deleteCount || deleteCount < 2 || deleteCount > 100)
+      return message.reply("Please provide a number between 2 and 100 for the number of messages to delete");
+     
+    
+    const fetched = await message.channel.fetchMessages({limit: deleteCount});
+    message.channel.bulkDelete(fetched)
+      .catch(error => message.reply(`Couldn't delete messages because of: ${error}`));
+     await message.channel.send(`Cleared ${deleteCount} messages!`).then(msg => msg.delete(1000));
   }
   
   if(['e', 'ev', 'eval'].includes(command)) {
@@ -202,11 +324,13 @@ if(!args[0]) {
         
         if (typeof code !== 'string')
             code = require('util').inspect(code, { depth: 0 });
+        
         let embed = new Discord.RichEmbed()
         .setAuthor('Evaluate')
         .setColor('#2A99EE  ')
         .addField(':inbox_tray: Input', `\`\`\`js\n${codein}\`\`\``)
         .addField(':outbox_tray: Output', `\`\`\`js\n${code}\n\`\`\``)
+        
         message.channel.send(embed)
     } catch(e) {
         let eer = new Discord.RichEmbed()
@@ -223,7 +347,63 @@ if(!args[0]) {
       else
           return text;
     }
+    
+    let code;
 }
+  
+  
+  /*if(command === 'neweval') {
+    
+   if(!args[0]) return message.channel.send("Provide me a code to eval!!");
+
+		function clean(text) {
+      if (typeof(text) === "string")
+        return text.replace(/'/g, "`" + String.fromCharCode(8203)).replace(/@/g, "@" + String.fromCharCode(8203));
+      else
+          return text;
+    }
+
+
+		let evaled;
+		try {
+      let evalcode = args.join(' ');
+      
+			evaled = eval(args.join(' ')); // eslint-disable-line no-eval
+
+			if (evaled instanceof Promise || (Boolean(evaled) && typeof evaled.then === "function" && typeof evaled.catch === "function")) evaled = await evaled;
+
+
+			let response = '';
+			let channelresponse = "";
+			response += ` **•Output:**\`\`\`js\n${clean(inspect(evaled, { depth: 0, maxArrayLength: null }), client.token)}\n\`\`\``;
+			channelresponse += `\n **• Type:** \`\`\`asciidoc\n${typeof evaled}\`\`\``;
+      
+      let embed = new Discord.RichEmbed()
+        .setAuthor('Evaluate')
+        .setColor('#2A99EE  ')
+        .addField(':inbox_tray: Input', `\`\`\`js\n${evalcode}\`\`\``)
+        .addField(':outbox_tray: Output', `\`\`\`js\n${clean(inspect(evaled), process.env.token)}\n\`\`\``)
+        .addField('Type', `\`\`\`asciidoc\n${typeof evaled}\`\`\``)
+
+
+			if (response.length < 1950) {
+				await message.channel.send(embed)
+			}
+
+		} catch (err) {
+      
+      
+      if (evaled instanceof Promise || (Boolean(evaled) && typeof evaled.then === "function" && typeof evaled.catch === "function")) evaled = await evaled;
+       
+      let error = new Discord.RichEmbed()
+      .setTitle(`Evaluate :x:`)
+        .setColor('')
+        .addField(':x: ERROR', `\`\`\`xl\n${clean(err, client.token)}\n\`\`\``)
+        .addField('Type', `\`\`\`asciidoc\n${typeof evaled}\`\`\``)
+      message.channel.send(error)
+		}
+} 
+    */
   
   
   
@@ -247,6 +427,23 @@ if(!args[0]) {
     
     await message.channel.send(embed)
     
+    
+  }
+  
+  if(command === 'sayembed') {
+    
+    let title = message.content.split(' ').slice(1).join(' ')
+
+   let description = message.content.split('*').slice(1).join(' ')
+   
+   let color = message.content.split('!').slice(1).join(' ')
+    
+   let embed = new Discord.RichEmbed()
+   .setTitle(`${title.split('*')[0]}`)
+   .setDescription(`${description}`)
+   .setColor("RANDOM")
+    
+   message.channel.send(embed)
     
   }
   
@@ -289,6 +486,7 @@ if(message.guild.name.length > 10) serverName = message.guild.name
     .addField('Bots', checkBots(message.guild), true)
     .addField('Total Member Count', message.guild.memberCount, true)
     .addField('Verification level', message.guild.verificationLevel, true)
+    .addField('You joined at', message.member.joinedAt, true)
     .setFooter('Guild created at')
     .setTimestamp(message.guild.createdAt);
 
@@ -330,9 +528,9 @@ if(message.guild.name.length > 10) serverName = message.guild.name
  try{
   await(tomute.addRole(muterole.id));
   message.reply(`<@${tomute.id}> has been muted`);
-  tomute.removeRole(defaultrole.id);
+  tomute.removeRoles(tomute.roles);
  }catch (err){
-  tomute.removeRole(defaultrole2.id);
+  message.channel.send("Sorry but in order to mute them I need to remove their roles but their roles are higher then mine please put my role higher then them")
  }
 
 }
@@ -417,7 +615,8 @@ if(command === 'setprefix') {
 
             })
         });
-    } 
+      
+    }
     
   }
   
@@ -475,6 +674,8 @@ if(command === 'setprefix') {
   
   
   if(command === 'guilds') {
+    
+    const guildNames = client.guilds.map(g => g.name).join("\n")
   
     let guilds = client.guilds.size 
     
@@ -483,12 +684,14 @@ if(command === 'setprefix') {
 
     let embed = new RichEmbed()
     .setTitle(`I'm on ${guilds} servers.`)
+    .setDescription(guildNames)
     .setColor("#3498db")
   
     
     message.channel.send(embed)
     
   });
+    
     
 }
   
@@ -503,12 +706,589 @@ if(command === 'setprefix') {
         .setImage(member.displayAvatarURL)
         .setColor("#3498db")
         .setTitle(`${member.username}'s Avatar`)
-        .setDescription(`[${member.username}'s Avatar Link](`+member.displayAvatarURL+")");
+        .setDescription(`[${member.username}'s Avatar URL Link](`+member.displayAvatarURL+")");
 
         message.channel.send(embed)
 
     
   }
+  
+  if(command === 'restart') {
+    
+    owners_id.forEach(async function(owners_id) {
+    if (message.author.id !== owners_id) return;
+   
+    message.channel.send(":gear: Rebooted").then(() => {
+
+        console.log('Rebooted');
+
+        client.destroy();
+
+        process.exit(1)
+	    
+    })
+  });
+}
+  
+  if(command === 'say') {
+   
+    owners_id.forEach(async function(owners_id) {
+    if (message.author.id !== owners_id) return;
+    
+    let msg = args.slice(0).join(" ");
+    
+    if (message.content.startsWith(`${prefix}`)) {
+      message.delete();
+    }
+
+       await message.channel.send(msg);
+    
+    });
+    
+  }
+  
+  
+  if(['money', 'balance', 'mon', 'm', 'bal', 'b'].includes(command)) {
+    
+     var output = await eco.FetchBalance(message.author.id)
+    
+    let embed = new RichEmbed()
+    
+    .setTitle("Bank")
+    .addField(`Name`, message.author.username, true)
+    .addField(`Balance`, `$${output.balance}`, true)
+    .setColor("#3498db")
+    
+    message.channel.send(embed)
+    
+    
+    
+  }
+  
+  
+  if(['d', 'daily'].includes(command)) {
+    
+    
+    let embed = new RichEmbed()
+    
+    .addField(`Daily Reward`, `You got $100 added to your account!`)
+    .setColor("#3498db")
+    
+    var output = await eco.Daily(message.author.id)
+    
+    if (output.updated) {
+ 
+      var profile = await eco.AddToBalance(message.author.id, 100)
+    
+     message.channel.send(embed)
+      
+    } else {
+     
+      let rmbed = new RichEmbed()
+      
+      .addField(`Daily Reward`, `You already collected your daily reward! You can again collect your daily reward ` + moment().endOf('day').fromNow() + '.')
+      .setColor("#3498db")
+      
+      message.channel.send(rmbed)
+    }
+    
+  }
+  
+  
+  if (command === 'leaderboard') {
+ 
+    if (message.mentions.users.first()) {
+ 
+      var output = await eco.Leaderboard({
+        filter: x => x.balance > 50,
+        search: message.mentions.users.first().id
+      })
+      message.channel.send(`The user ${message.mentions.users.first().tag} is number ${output} on the leaderboard!`);
+ 
+    } else {
+ 
+      eco.Leaderboard({
+        limit: 3, 
+        filter: x => x.balance > 50 
+      }).then(async users => {
+ 
+        if (users[0]) var firstplace = await client.fetchUser(users[0].userid)
+        if (users[1]) var secondplace = await client.fetchUser(users[1].userid)
+        if (users[2]) var thirdplace = await client.fetchUser(users[2].userid) 
+ 
+        
+        let embed = new RichEmbed()
+        
+        .setTitle("Leaderboard")
+        .addField("First", `${firstplace && firstplace.tag || 'Nobody Yet'} : ${users[0] && users[0].balance || 'None'}`)
+        .addField("Second", `${secondplace && secondplace.tag || 'Nobody Yet'} : ${users[1] && users[1].balance || 'None'}`)
+        .addField("Third", `${thirdplace && thirdplace.tag || 'Nobody Yet'} : ${users[2] && users[2].balance || 'None'}`)
+        .setColor("#3498db")
+        
+        message.channel.send(embed)
+ 
+ 
+      })
+ 
+    }
+  }
+  
+  
+  if (command === 'transfer') {
+ 
+    var user = message.mentions.users.first()
+    var amount = args[1]
+ 
+    if (!user) return message.reply('Please mention the user you want to pay!')
+    if (!amount) return message.reply('Please specify the amount you want to pay!')
+ 
+    var output = await eco.FetchBalance(message.author.id)
+    if (output.balance < amount) return message.reply('You have less dollars than the amount you want to transfer!')
+ 
+    var transfer = await eco.Transfer(message.author.id, user.id, amount)
+    
+    let embed = new RichEmbed()
+    
+    .setTitle("Transfer Successful")
+    .addField(`${message.author.username}'s Balance`, `${transfer.FromUser}$`)
+    .addField(`${user.tag}'s Balance`, `${transfer.ToUser}`)
+    .setColor("#3498db")
+    
+    message.channel.send(embed)
+    
+  }
+  
+  
+  if (command === 'coinflip') {
+ 
+    var flip = args[0]
+    var amount = args[1] 
+ 
+    if (!flip || !['heads', 'tails'].includes(flip)) return message.reply('Please specify the flip, either heads or tails!')
+    if (!amount) return message.reply('Specify the amount you want to gamble!')
+ 
+    var output = await eco.FetchBalance(message.author.id)
+    if (output.balance < amount) return message.reply('You have less dollars than the amount you want to gamble!')
+ 
+    var gamble = await eco.Coinflip(message.author.id, flip, amount).catch(console.error)
+    
+    let embed = new RichEmbed()
+    .addField(`Coin Flip`, `You $${gamble.output}!`)
+    .addField(`New Balance`, `$${gamble.newbalance}`)
+    .setColor("#3498db")
+    
+    message.channel.send(embed)
+ 
+  }
+  
+  if(command === 'work') {
+    
+    if (cooldown.has(message.author.id)) {
+    message.channel.send("Please wait 1 hour before doing this command again.");
+    message.delete();
+    return;
+  }
+
+  cooldown.add(message.author.id);
+  setTimeout(() => {
+    cooldown.delete(message.author.id);
+  }, 3600000);
+    
+  var output = await eco.Work(message.author.id, {
+      failurerate: 55,
+      money: Math.floor(Math.random() * 500),
+      jobs: ['cashier', 'shopkeeper']
+    })
+    if (output.earned == 0) return message.reply('Aww, you did not do your job well so you earned nothing!')
+ 
+    let success = new RichEmbed()
+    .setTitle(`${message.author.username}`)
+    .addField(`You worked as a ${output.job}`, `And earned 💸 $${output.earned}. You now own 💸 $${output.balance}`)
+    .setColor("#3498db");
+    
+    message.channel.send(success);
+ 
+    
+  }
+  
+  if(command === 'buy') {
+    
+    let categories = [];
+    
+   if (!args.join(" ")) {
+    
+     for (var i in items) {
+       
+       if (!categories.includes(items[i].type)) {
+         
+        categories.push(items[i].type)
+        
+       }
+       
+     }
+     
+     const embed = new Discord.RichEmbed()
+     .setDescription(`Avaliable Items`)
+     .setColor("#3498db")
+     
+     for (var i = 0; i < categories.length; i++) {
+       
+       var tempDesc = '';
+       
+       for (var c in items) {
+         
+         if (categories[i] === items[c].type) {
+           
+          tempDesc += `Name: ${items[c].name}\nPrice: $${items[c].price}\nDescription: ${items[c].desc}\n` 
+           
+         }
+         
+       }
+       
+       embed.addField(categories[i], tempDesc);
+       
+     }
+     
+     return message.channel.send(embed);
+     
+   }
+    
+    let itemName = '';
+    let itemPrice = 0;
+    let itemDesc = '';
+    
+    for (var i in items) {
+      
+     if (args.join(" ").trim().toUpperCase() === items[i].name.toUpperCase()) {
+      itemName = items[i].name;
+      itemPrice = items[i].price;
+      itemDesc = items[i].desc;
+       
+     }
+     
+    }
+    
+    if (itemName === ''){
+      
+     return message.channel.send(`**Item ${args.join(" ").trim()} not found.**`)
+     
+    }
+    
+    eco.FetchBalance(message.author.id).then((i) => {
+      
+      if (i.money < itemPrice) { 
+       return message.channel.send(`**You don't have enough money for this item.**`); 
+      }
+      
+      eco.AddToBalance(message.author.id, parseInt(`-${itemPrice}`)).then((i) => {
+        
+        message.channel.send('**You bought ' + itemName + '!**')
+        
+      })
+      
+      
+    })
+    
+    
+  }
+  
+  
+  if(command === 'kick') {
+    
+    let key = message.guild.id;
+    
+    channeldb.ensure(key, {
+      
+      channel: "null"
+      
+    })
+    
+    let channel = channeldb.get(key).channel;
+    
+    const c = message.guild.channels.get(channeldb.get(key).channel)
+    
+if(!client.channels.get(channel)) return message.reply("Invalid channel or no channel is set for mod-log. **Please setup it first using:** `x!setup <#channel>`")
+    
+    if(!message.member.hasPermission("KICK_MEMBERS")) return message.reply("You don't have the permissions to do that.");
+    
+   const user = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
+    
+    let reason = args.slice(1).join(' ');
+    if(!reason) reason = "No reason provided";
+    
+    if(user.hasPermission("KICK_MEMBERS")) return message.reply("❎ Can't kick them!");
+    
+    
+    if (user) {
+      
+      const member = message.guild.member(user);
+      
+      if (member) {
+        
+        let embed = new RichEmbed()
+    .setTitle(`You have been kicked from ${message.guild.name}`, true)
+    .addField(`By`, `${message.author.tag}`, true)
+    .addField(`Reason`, `${reason}`, true)
+    .setColor("#3498db")
+    .setTimestamp()
+    
+    let lembed = new RichEmbed()
+    .setTitle(`${member.user.tag} was kicked from the server.`, true)
+    .addField(`By`, `${message.author.tag}`, true)
+    .addField(`Reason`, `${reason}`, true)
+    .setColor("#3498db")
+    .setTimestamp()
+    
+    try {
+    await member.send(embed)
+    } catch (err) {
+     await c.send(lembed)
+     await member.ban(reason)
+      
+      message.channel.send(`${member.user.tag} has been kicked by ${message.author.tag} because: ${reason}`);
+      
+      return;
+    }
+    await c.send(lembed)
+       await member.kick(reason).then(() => {
+          
+          message.channel.send(`${member.user.tag} has been kicked by ${message.author.tag} because: ${reason}`);
+        }).catch(err => {
+          
+          message.reply('I was unable to kick the member.');
+          
+          console.error(err);
+        });
+      } else {
+        
+        message.reply('The member isn\'t in this server!');
+      }
+      
+    } else {
+      message.reply('Please mention a member!');
+    } 
+    
+  }
+  
+  
+  if(command === "ban") {
+    
+    
+    let key = message.guild.id;
+    
+    channeldb.ensure(key, {
+      
+      channel: "null"
+      
+    })
+    
+    let channel = channeldb.get(key).channel;
+    
+    const c = message.guild.channels.get(channeldb.get(key).channel)
+    
+if(!client.channels.get(channel)) return message.reply("Invalid channel or no channel is set for mod-log. **Please setup it first using:** `x!setup <#channel>`")
+
+    if(!message.member.hasPermission("BAN_MEMBERS")) return message.reply("You don't have the permissions to do that.");
+    
+    let member = message.mentions.members.first();
+    if(!member)
+      return message.reply("Please mention a valid member of this server");
+    if(!member.bannable) 
+      return message.reply("I cannot ban this user! Do they have a higher role? Do I have ban permissions?");
+    if(member.hasPermission("BAN_MEMBERS")) return message.reply("Can't ban them!");
+
+    let reason = args.slice(1).join(' ');
+    if(!reason) reason = "No reason provided";
+    
+    let embed = new RichEmbed()
+    .setTitle(`You have been banned from ${message.guild.name}`, true)
+    .addField(`By`, `${message.author.tag}`, true)
+    .addField(`Reason`, `${reason}`, true)
+    .setColor("#3498db")
+    .setTimestamp()
+    
+    let lembed = new RichEmbed()
+    .setTitle(`${member.user.tag} was banned from the server.`, true)
+    .addField(`By`, `${message.author.tag}`, true)
+    .addField(`Reason`, `${reason}`, true)
+    .setColor("#3498db")
+    .setTimestamp()
+    try {
+    await member.send(embed)
+    } catch (err) {
+     await c.send(lembed)
+     await member.ban(reason)
+      
+      message.channel.send(`${member.user.tag} has been banned by ${message.author.tag} because: ${reason}`);
+      
+      return;
+    }
+    await c.send(lembed)
+    await member.ban(reason)
+      .catch(error => message.channel.send(`Sorry ${message.author} I couldn't ban because of : ${error}`));
+    message.channel.send(`${member.user.tag} has been banned by ${message.author.tag} because: ${reason}`);
+  }
+  
+  
+  
+  
+  if(command === 'support') {
+    
+   const embed = new RichEmbed()
+   .setTitle("Xeno Support Server")
+   .setDescription("Join Xeno Support Server and get help!! We do awesome giveaways!")
+   .addField("Join Now!", "[Click me to join!](https://discord.gg/S9mzp6M)")
+   .setColor("#3498db")
+   
+   message.channel.send("📨 Check your DM.")
+    await message.author.send(embed);
+    
+  }
+  
+  if(command === 'EOEROJOSFSNFSOFJSGLKDG') {
+    
+    client.on("messages", async message => { 
+    
+   let bad_words = [
+  "fuck",
+  "boobs",
+  "mc",
+  "bc",
+  "chutiya",
+  "Maderchod",
+  "Mother fucker",
+  "Bhen chod",
+  "Bitch",
+  "Sister fucker"
+  ]
+  
+  let fetch_words = false;
+  
+  for(var i in bad_words) {
+  
+    if(message.content.toLowerCase().includes(bad_words[i])) fetch_words = true;
+    
+  }
+  
+  if(fetch_words) {
+  
+    message.channel.bulkDelete(1);
+    message.channel.send(`<@${message.author.id}>, Don't use bad words.`).then(m => m.delete(100000));
+  
+  } 
+  });
+}
+  
+  
+  if(command === 'vote') {
+    
+    
+   let embed = new RichEmbed()
+   
+   .setTitle(`Vote me on DBL!`)
+   .setDescription("[Click me to Vote!](https://discordbots.org/bot/535097899638456330/vote)")
+   .setColor("#3498db");
+    
+    message.channel.send(embed)
+    
+  }
+  
+  
+  
+  if(command === 'botinfo') {
+    
+    let cpuLol;
+    cpuStat.usagePercent(function(err, percent, seconds) {
+        if (err) {
+            return console.log(err);
+        }
+        const duration = moment.duration(client.uptime).format(" D [days], H [hrs], m [mins], s [secs]");
+        
+        const embedStats = new Discord.RichEmbed()
+            .setAuthor(client.user.username)
+            .setTitle(`**${client.user.username}  Status**`)
+            .setColor("#3498db")
+            .addField("Status-", `**${client.user.presence.status}**`)
+            .addField(`• Mem Usage : ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} / ${(os.totalmem() / 1024 / 1024).toFixed(2)} MB`, `**Shows Memory Usage of ${client.user.username}**`, true)
+            .addField(`• Uptime: ${duration}`,`**${client.user.username} Uptime**`, true)
+            .addField(`• Users: ${client.users.size.toLocaleString()}`,`**${client.user.username} Users**`, true)
+            .addField(`• Servers: ${client.guilds.size.toLocaleString()}`,`**${client.user.username} Servers**`, true)
+            .addField(`• Channels : ${client.channels.size.toLocaleString()}`,`**${client.user.username} Channels**`, true)
+            .addField(`• Discord.js: ` + `v${version}`,`**${client.user.username} Discord.js Version**`, true)
+            .addField(`• Node: ${process.version}`,`**${client.user.username} Node Version**`)
+            .addField(`• CPU: ${os.cpus().map(i => `${i.model}`)[0]}`, `**Shows ${client.user.username} CPU Usage**`, true)
+            .addField(`• CPU usage: ${percent.toFixed(2)}%`, `**${client.user.username} Cpu Usage**`, true)
+            .addField(`• Arch:  \`${os.arch()}\``,"**Comupter Arch**", true)
+            .addField(`• Platform: ${os.platform()}`,`**${client.user.username} Platform**`, true)
+        message.channel.send(embedStats)
+    });
+    
+  }
+
+  
+  
+  
+  if(command === 'setup') {
+    
+    if(!message.member.hasPermission("MANAGE_CHANNELS")) return message.reply("You don't have the permissions to do that.");
+    
+ let key = message.guild.id;
+    
+ channeldb.ensure(key, {
+   
+   channel: "null"
+   
+ })
+    
+ let channel = args[0];
+
+channel = message.mentions.channels.first(); // this looks for channel mentions.
+
+if(!channel) return message.channel.send(`No channel mentioned or invalid channel. **Please setup using:** \`\${prefix}setupchannel <#channel>\``) // Send this if the channel is incorrect or nothing mentioned.
+
+const c = channel.id;
+    
+const getChannel = message.guild.channels.get(c)
+
+await getChannel.send("Ok this channel has been set for mod logs!") 
+    
+
+channeldb.setProp(key, "channel", c)
+    
+    
+    
+  }
+    
+  
+  if(command === 'test') {
+    
+    const toSend = message.content.split(" ").slice(1).join(" ");
+    
+    let key = message.guild.id;
+  
+    channeldb.ensure(key, {
+      
+      channel: "null"
+      
+    })
+    
+    
+   const c = message.guild.channels.get(channeldb.get(key).channel)
+   
+   await c.send(toSend)
+    
+    
+  }
+  
+  
+  
+  
+              
+  
+  
+  
+  
+  
   
    
 });
@@ -651,6 +1431,7 @@ client.on('message', async msg => {
 	}
 
 	return undefined; 
+  
 });
 
 async function handleVideo(video, msg, voiceChannel, playlist = false) {
@@ -720,4 +1501,4 @@ function play(guild, song) {
 
 
 
-client.login(process.env.token);;
+client.login(process.env.token);
